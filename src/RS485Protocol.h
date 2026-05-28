@@ -40,6 +40,8 @@ static constexpr char CMD_SYNC_REQUEST[] = "sync_request"; ///< Slave → Master
 static constexpr char CMD_SYNC_LIST[]    = "sync_list";    ///< Master → Slave : [{name, hash}, …]
 static constexpr char CMD_SYNC_NEED[]    = "sync_need";    ///< Slave → Master : [filenames needed]
 
+static constexpr char CMD_SEND_STATE[] = "send_state";
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CRC-16/CCITT-FALSE
 //

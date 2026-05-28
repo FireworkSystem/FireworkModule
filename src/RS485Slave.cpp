@@ -30,10 +30,12 @@ RS485Slave::RS485Slave(HardwareSerial& serial,
                        uint8_t         pinRx,
                        uint8_t         pinDE,
                        uint32_t        baud,
-                       uint32_t        helloRetryMs)
+                       uint32_t        helloRetryMs,
+                       uint32_t        connectionTimeoutMs)
     : RS485Node(serial, pinTx, pinRx, pinDE, baud)
     , m_helloRetryMs(helloRetryMs)
-{
+    , m_connectionTimeoutMs(connectionTimeoutMs)
+{   
     // Read MAC once at construction time
     uint8_t rawMac[6];
     esp_read_mac(rawMac, ESP_MAC_WIFI_STA);
@@ -54,6 +56,7 @@ RS485Slave::~RS485Slave()
 void RS485Slave::begin()
 {
     RS485Node::begin();
+    m_lastContactMs = millis(); // start timeout clock from boot
     Serial.printf("[Slave] RS485 ready  TX=%d  RX=%d  DE=%d  @%u baud  MAC=%s\n",
                   m_pinTx, m_pinRx, m_pinDE, m_baud, m_mac);
     sendHello();
@@ -62,7 +65,6 @@ void RS485Slave::begin()
 void RS485Slave::update()
 {
     // ── 1. Process any waiting incoming frame ─────────────────────────────────
-    // 20 ms poll window: enough to catch a welcome or command arriving cold.
     RS485Frame frame;
     if (readFrame(frame, 20))
     {
@@ -73,6 +75,9 @@ void RS485Slave::update()
 
         if (forUs)
         {
+            // Any valid frame from master resets the connection timeout
+            m_lastContactMs = millis();
+
             JsonDocument doc;
             const DeserializationError err = deserializeJson(
                 doc,
@@ -92,11 +97,33 @@ void RS485Slave::update()
         }
     }
 
-    // ── 2. Retry hello if still unregistered ──────────────────────────────────
+    // ── 2. Connection timeout — master went away ───────────────────────────────
+    // If registered but no frame received within the timeout window,
+    // assume the master has restarted and re-enter discovery.
+    if (m_registered &&
+        millis() - m_lastContactMs >= m_connectionTimeoutMs)
+    {
+        Serial.printf("[Slave] No contact from master for %ums — re-registering\n",
+                      m_connectionTimeoutMs);
+
+        // Reset registration state
+        m_registered = false;
+        m_addr       = 0;
+        m_file.reset();
+
+        // Send hello immediately — don't wait for the retry timer
+        sendHello();
+    }
+
+    // ── 3. Retry hello if still unregistered ──────────────────────────────────
     if (!m_registered &&
         millis() - m_lastHelloMs >= m_helloRetryMs)
     {
         Serial.println("[Slave] No welcome received — retrying hello");
+
+        if(m_onUnconnect)
+            m_onUnconnect();
+
         sendHello();
     }
 }
@@ -121,6 +148,13 @@ void RS485Slave::goodbye()
 void RS485Slave::onCommand   (OnCommand    cb) { m_onCommand    = cb; }
 void RS485Slave::onFileReady (OnFileReady  cb) { m_onFileReady  = cb; }
 void RS485Slave::onRegistered(OnRegistered cb) { m_onRegistered = cb; }
+void RS485Slave::onUnconnect(OnUnconnect cb) { m_onUnconnect = cb; }
+void RS485Slave::onPreparation(OnPreparation cb) { m_onPreparation = cb; }
+void RS485Slave::onArmement(OnArmement cb) { m_onArmement = cb; }
+void RS485Slave::onPlay(OnPlay cb) { m_onPlay = cb; }
+void RS485Slave::onPause(OnPause cb) { m_onPause = cb; }
+void RS485Slave::onStop(OnStop cb) { m_onStop = cb; }
+void RS485Slave::onFin(OnFin cb) { m_onFin = cb; }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Public API
@@ -256,6 +290,9 @@ void RS485Slave::handleCommand(const char* cmd, JsonDocument& doc)
     {
         handleFileEnd(doc);
     }
+    else if (strcmp(cmd, CMD_SEND_STATE) == 0) {
+        handleStateChange(doc);
+    }
     else
     {
         // Forward to the user callback for application commands
@@ -386,4 +423,47 @@ void RS485Slave::handleFileEnd(JsonDocument& doc)
 
     sendAck("file_ok");
     m_file.reset();
+}
+
+void RS485Slave::handleStateChange(JsonDocument& doc) {
+    int intState = doc["state"];
+    State state = static_cast<State>(intState);
+    switch(state) {
+        case State::NotConnected: {
+            if(m_onUnconnect)
+                m_onUnconnect();
+            break;
+        }
+        case State::Preparation: {
+            if(m_onPreparation)
+                m_onPreparation();
+            break;
+        }
+        case State::Armement: {
+            if(m_onArmement)
+                m_onArmement();
+            break;
+        }
+        case State::Play: {
+            String fileName = doc["filename"];
+            if(m_onPlay)
+                m_onPlay(fileName);
+            break;
+        }
+        case State::Pause: {
+            if(m_onPause)
+                m_onPause();
+            break;
+        }
+        case State::Stop: {
+            if(m_onStop)
+                m_onStop();
+            break;
+        }
+        case State::Fin: {
+            if(m_onFin)
+                m_onFin();
+            break;
+        }
+    }
 }

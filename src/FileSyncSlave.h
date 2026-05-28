@@ -37,6 +37,7 @@ class FileSyncSlave
 {
 public:
     using OnSyncComplete = std::function<void()>;
+    using OnRegistered   = std::function<void(uint8_t assignedId)>;
 
     /// @param slave    The RS485Slave instance.
     /// @param planDir  LittleFS directory that mirrors the Heltec plan files.
@@ -50,6 +51,11 @@ public:
     /// Called when sync completes — either nothing to download, or the last
     /// file has been saved successfully.
     void onSyncComplete(OnSyncComplete callback);
+
+    /// Called when the slave is registered with the master.
+    /// Use this instead of slave.onRegistered() directly, as FileSyncSlave
+    /// already occupies that slot internally.
+    void onRegistered(OnRegistered callback);
 
     /// Manually trigger a sync (sends sync_request to master).
     /// Called automatically after registration; call again if needed.
@@ -113,7 +119,8 @@ private:
     RS485Slave&    m_slave;
     const char*    m_planDir;          // points to a string literal — no heap
     OnSyncComplete m_onSyncComplete;
-
+    OnRegistered   m_onRegistered;
+    
     // Track how many files are still outstanding so we know when sync is done
     uint8_t        m_filesExpected = 0;
     uint8_t        m_filesReceived = 0;

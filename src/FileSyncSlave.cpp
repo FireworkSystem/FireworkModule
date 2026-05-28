@@ -30,9 +30,13 @@ void FileSyncSlave::begin()
     });
 
     // ── Hook: trigger sync automatically once registered ─────────────────────
-    m_slave.onRegistered([this](uint8_t /*assignedId*/)
+    m_slave.onRegistered([this](uint8_t assignedId)
     {
         Serial.println("[SyncSlave] Registered — requesting sync");
+
+        if (m_onRegistered)
+            m_onRegistered(assignedId);
+
         requestSync();
     });
 }
@@ -45,6 +49,12 @@ void FileSyncSlave::onSyncComplete(OnSyncComplete callback)
 {
     m_onSyncComplete = callback;
 }
+
+void FileSyncSlave::onRegistered(OnRegistered callback)
+{
+    m_onRegistered = callback;
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  requestSync
@@ -127,7 +137,8 @@ uint8_t FileSyncSlave::parseSyncList(JsonArray& files,
             Serial.printf("[SyncSlave] Skipping entry with invalid name\n");
             continue;
         }
-        if (strlen(hash) == 0 || strlen(hash) >= SYNC_MAX_HASH)
+        //Serial.printf("%d, %d, %d", strlen(hash), SYNC_MAX_HASH, strlen(hash) >= SYNC_MAX_HASH);
+        if (strlen(hash) == 0 || strlen(hash) > SYNC_MAX_HASH)
         {
             Serial.printf("[SyncSlave] Skipping '%s' — invalid hash\n", name);
             continue;
@@ -284,6 +295,18 @@ void FileSyncSlave::handleSyncList(JsonDocument& doc)
 
 void FileSyncSlave::saveFile(const char* name, const uint8_t* data, size_t len)
 {
+    // Ensure the plan directory exists — it may have been lost if the
+    // filesystem was freshly formatted.
+    if (!LittleFS.exists(m_planDir))
+    {
+        if (!LittleFS.mkdir(m_planDir))
+        {
+            Serial.printf("[SyncSlave] Failed to create dir '%s'\n", m_planDir);
+            return;
+        }
+        Serial.printf("[SyncSlave] Created dir '%s'\n", m_planDir);
+    }
+
     // Build full path on the stack
     char path[SYNC_MAX_FILENAME + 16] = {};
     snprintf(path, sizeof(path), "%s/%s", m_planDir, name);

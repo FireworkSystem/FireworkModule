@@ -25,6 +25,49 @@ void Keypad::begin() {
   _drawUI();
 }
 
+void Keypad::calibrateOnly() {
+  // Calibrate touch without drawing the keypad UI.
+  // Use this when another view owns the screen at startup.
+  _touchCalibrate();
+}
+
+void Keypad::show() {
+  // Reset all state so the keypad starts completely fresh
+  _numIdx        = 0;
+  _numBuf[0]     = 0;
+  _pressedIdx    = -1;
+  _confirmed     = false;
+  _confirmedValue = 0;
+  _wasTouching   = false;
+  _actionDone    = false;
+  _missCount     = 0;
+
+  // Redraw the UI — this calls initButton() on each key which resets
+  // their internal pressed/lastPressed state
+  _drawUI();
+
+  // Explicitly flush all button press states.
+  // TFT_eSPI_Button::press() sets _lastpress = _currpress then _currpress = v.
+  // Calling it twice ensures both _lastpress and _currpress are false,
+  // so justPressed() cannot fire on the first update() after opening.
+  for (uint8_t i = 0; i < NUM_KEYS; i++) {
+    _keys[i].press(false);
+    _keys[i].press(false);
+  }
+}
+
+void Keypad::setValue(int v) {
+  // Pre-fill the buffer with an existing value.
+  // Call after show() so _drawUI() has already run.
+  char tmp[NUM_LEN + 1] = {};
+  snprintf(tmp, sizeof(tmp), "%d", v);
+  _numIdx = 0;
+  for (uint8_t i = 0; tmp[i] != '\0' && _numIdx < NUM_LEN; ++i)
+    _numBuf[_numIdx++] = tmp[i];
+  _numBuf[_numIdx] = 0;
+  _redrawDisplay();
+}
+
 void Keypad::update() {
   uint16_t tx = 0, ty = 0;
   bool pressed = _tft.getTouch(&tx, &ty);
@@ -51,7 +94,7 @@ void Keypad::update() {
           _tft.fillRoundRect(DEL_X - DEL_W/2, DEL_Y - DEL_H/2, DEL_W, DEL_H, 6, COL_DEL);
           _tft.setTextDatum(MC_DATUM);
           _tft.setTextColor(COL_KEY_TXT, COL_DEL);
-          _tft.drawString("Del", DEL_X, DEL_Y);
+          _tft.drawString("<", DEL_X, DEL_Y);
         } else {
           _keys[_pressedIdx].drawButton(false);
         }
@@ -85,7 +128,7 @@ void Keypad::update() {
         _tft.setFreeFont(FONT_KEY);
         _tft.setTextDatum(MC_DATUM);
         _tft.setTextColor(TFT_WHITE, COL_DEL_PR);
-        _tft.drawString("Del", DEL_X, DEL_Y);
+        _tft.drawString("<", DEL_X, DEL_Y);
         _deleteDigit();
 
       } else {
@@ -158,7 +201,7 @@ void Keypad::_drawUI() {
     _tft.setFreeFont(FONT_KEY); _keys[10].drawButton(); }
 
   // DEL button
-  { char lbl[] = "Del";
+  { char lbl[] = "<";
     _keys[11].initButton(&_tft, DEL_X, DEL_Y, DEL_W, DEL_H,
       COL_DEL, COL_DEL, COL_KEY_TXT, lbl, 1);
     _tft.setFreeFont(FONT_KEY); _keys[11].drawButton(); }

@@ -2,6 +2,7 @@
 
 #include "RS485Node.h"
 #include "NodeRegistry.h"
+#include "State.h"
 
 #include <functional>
 
@@ -50,16 +51,28 @@ public:
     /// Invoked when the master has assigned a bus ID to this slave.
     using OnRegistered = std::function<void(uint8_t assignedId)>;
 
+    using OnUnconnect = std::function<void()>;
+    using OnPreparation = std::function<void()>;
+    using OnArmement = std::function<void()>;
+    using OnPlay = std::function<void(String fileName)>;
+    using OnPause = std::function<void()>;
+    using OnStop = std::function<void()>;
+    using OnFin = std::function<void()>;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    /// @param helloRetryMs   How long to wait before retrying the hello if
-    ///                       no welcome is received (ms).
-    explicit RS485Slave(HardwareSerial& serial        = Serial2,
-                        uint8_t         pinTx         = 17,
-                        uint8_t         pinRx         = 16,
-                        uint8_t         pinDE         = 26,
-                        uint32_t        baud          = 115200,
-                        uint32_t        helloRetryMs  = 3000);
+    /// @param helloRetryMs       How long to wait before retrying hello (ms).
+    /// @param connectionTimeoutMs How long without a ping before assuming master
+    ///                            is gone and re-entering discovery. Should be
+    ///                            larger than the master's heartbeat interval.
+    ///                            Default 15000ms (3× the default 5s heartbeat).
+    explicit RS485Slave(HardwareSerial& serial              = Serial2,
+                        uint8_t         pinTx               = 17,
+                        uint8_t         pinRx               = 16,
+                        uint8_t         pinDE               = 26,
+                        uint32_t        baud                = 115200,
+                        uint32_t        helloRetryMs        = 3000,
+                        uint32_t        connectionTimeoutMs = 15000);
 
     /// Destructor — releases any pending file buffer.
     ~RS485Slave() override;
@@ -80,6 +93,13 @@ public:
     void onCommand   (OnCommand    callback);
     void onFileReady (OnFileReady  callback);
     void onRegistered(OnRegistered callback);
+    void onUnconnect(OnUnconnect callback);
+    void onPreparation(OnPreparation callback);
+    void onArmement(OnArmement callback);
+    void onPlay(OnPlay callback);
+    void onPause(OnPause callback);
+    void onStop(OnStop callback);
+    void onFin(OnFin callback);
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -123,17 +143,30 @@ private:
     void handleFileStart(JsonDocument& doc);
     void handleFileChunk(JsonDocument& doc);
     void handleFileEnd  (JsonDocument& doc);
+    void handleStateChange(JsonDocument& doc);
 
     // ── Members ───────────────────────────────────────────────────────────────
-    uint8_t  m_addr         = 0;              ///< 0 until master assigns an ID
-    char     m_mac[18]      = {};             ///< "AA:BB:CC:DD:EE:FF"
+    uint8_t  m_addr         = 0;    ///< 0 until master assigns an ID
+    char     m_mac[18]      = {};   ///< "AA:BB:CC:DD:EE:FF"
     bool     m_registered   = false;
 
     uint32_t m_helloRetryMs;
-    uint32_t m_lastHelloMs  = 0;
+    uint32_t m_lastHelloMs        = 0;
+
+    uint32_t m_connectionTimeoutMs;
+    uint32_t m_lastContactMs      = 0; ///< millis() of last frame received from master
 
     OnCommand    m_onCommand;
     OnFileReady  m_onFileReady;
     OnRegistered m_onRegistered;
+    
+    OnUnconnect m_onUnconnect;
+    OnPreparation m_onPreparation;
+    OnArmement m_onArmement;
+    OnPlay m_onPlay;
+    OnPause m_onPause;
+    OnStop m_onStop;
+    OnFin m_onFin;
+
     FileState    m_file;
 };
