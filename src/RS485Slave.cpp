@@ -68,10 +68,8 @@ void RS485Slave::update()
     RS485Frame frame;
     if (readFrame(frame, 20))
     {
-        // Accept frames addressed to our assigned ID, unregistered address, or broadcast
-        const bool forUs = (frame.dst == m_addr)
-                        || (frame.dst == NODE_UNREGISTERED_ADDR && !m_registered)
-                        || (frame.dst == RS485_BROADCAST);
+        // Accept frames addressed to our assigned ID, or broadcast
+        const bool forUs = (frame.dst == m_addr) || (frame.dst == RS485_BROADCAST);
 
         if (forUs)
         {

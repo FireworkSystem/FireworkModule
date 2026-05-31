@@ -36,7 +36,7 @@ void checkIgniters()
     {
         // TODO: replace with digitalRead(DETECT_PINS[i]) == HIGH
         // when real hardware detection is ready
-        const bool connected = (i == 0); // ← relay 0 always connected for testing
+        const bool connected = (i == 0 || i == 1); // ← relay 0 always connected for testing
 
         if (connected != s_lastConnected[i])
         {
@@ -225,6 +225,7 @@ void setup() {
   sequencer.onFire([](int id)
   {
       Serial.printf("[App] Fire top id=%d\n", id);
+      tft.drawString("fire " + String(id), 80, 120);
       // TODO: trigger relay for this id
   });
 } 
