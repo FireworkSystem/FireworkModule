@@ -58,6 +58,7 @@ public:
     using OnPause = std::function<void()>;
     using OnStop = std::function<void()>;
     using OnFin = std::function<void()>;
+    using OnJump = std::function<void(int timeInTenth)>;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ public:
     void onPause(OnPause callback);
     void onStop(OnStop callback);
     void onFin(OnFin callback);
+    void onJump(OnJump callback);
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -144,6 +146,7 @@ private:
     void handleFileChunk(JsonDocument& doc);
     void handleFileEnd  (JsonDocument& doc);
     void handleStateChange(JsonDocument& doc);
+    void handleJump(JsonDocument& doc);
 
     // ── Members ───────────────────────────────────────────────────────────────
     uint8_t  m_addr         = 0;    ///< 0 until master assigns an ID
@@ -167,6 +170,7 @@ private:
     OnPause m_onPause;
     OnStop m_onStop;
     OnFin m_onFin;
+    OnJump m_onJump;
 
     FileState    m_file;
 };

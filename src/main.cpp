@@ -222,13 +222,17 @@ void setup() {
     }
   });
 
+  slave.onJump([](int timeInTenth) {
+    sequencer.jumpTo(timeInTenth);
+  });
+
   sequencer.onFire([](int id)
   {
       Serial.printf("[App] Fire top id=%d\n", id);
       tft.drawString("fire " + String(id), 80, 120);
       // TODO: trigger relay for this id
   });
-} 
+}
 
 void loop() {
 

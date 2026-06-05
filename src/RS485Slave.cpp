@@ -35,7 +35,7 @@ RS485Slave::RS485Slave(HardwareSerial& serial,
     : RS485Node(serial, pinTx, pinRx, pinDE, baud)
     , m_helloRetryMs(helloRetryMs)
     , m_connectionTimeoutMs(connectionTimeoutMs)
-{   
+{
     // Read MAC once at construction time
     uint8_t rawMac[6];
     esp_read_mac(rawMac, ESP_MAC_WIFI_STA);
@@ -68,8 +68,10 @@ void RS485Slave::update()
     RS485Frame frame;
     if (readFrame(frame, 20))
     {
-        // Accept frames addressed to our assigned ID, or broadcast
-        const bool forUs = (frame.dst == m_addr) || (frame.dst == RS485_BROADCAST);
+        // Accept frames addressed to our assigned ID (only when registered)
+        // or broadcast (used for welcome, state changes, etc.)
+        const bool forUs = (frame.dst == m_addr && m_registered)
+                        || (frame.dst == RS485_BROADCAST);
 
         if (forUs)
         {
@@ -118,7 +120,7 @@ void RS485Slave::update()
         millis() - m_lastHelloMs >= m_helloRetryMs)
     {
         Serial.println("[Slave] No welcome received — retrying hello");
-
+        
         if(m_onUnconnect)
             m_onUnconnect();
 
@@ -153,6 +155,7 @@ void RS485Slave::onPlay(OnPlay cb) { m_onPlay = cb; }
 void RS485Slave::onPause(OnPause cb) { m_onPause = cb; }
 void RS485Slave::onStop(OnStop cb) { m_onStop = cb; }
 void RS485Slave::onFin(OnFin cb) { m_onFin = cb; }
+void RS485Slave::onJump(OnJump cb) { m_onJump = cb; }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Public API
@@ -184,11 +187,6 @@ const char* RS485Slave::mac()      const { return m_mac; }
 
 void RS485Slave::sendHello()
 {
-    Serial.printf("[Slave] Sending hello frame, DE=%d\n",
-                  digitalRead(m_pinDE)); // should be HIGH during TX, LOW after
-    setTxMode();
-    Serial.printf("[Slave] DE after setTxMode: %d\n", digitalRead(m_pinDE));
-    
     JsonDocument doc;
     doc["cmd"] = CMD_HELLO;
     doc["mac"] = m_mac;
@@ -291,6 +289,9 @@ void RS485Slave::handleCommand(const char* cmd, JsonDocument& doc)
     else if (strcmp(cmd, CMD_SEND_STATE) == 0) {
         handleStateChange(doc);
     }
+    else if (strcmp(cmd, CMD_JUMP) == 0) {
+
+    }
     else
     {
         // Forward to the user callback for application commands
@@ -360,7 +361,7 @@ void RS485Slave::handleFileChunk(JsonDocument& doc)
     }
 
     uint8_t    tmp[RS485_MAX_PAYLOAD];
-    const size_t chunkLen = base64Decode(b64, strlen(b64), tmp, sizeof(tmp));
+    const size_t chunkLen = rs485Base64Decode(b64, strlen(b64), tmp, sizeof(tmp));
 
     if (chunkLen == 0)
     {
@@ -463,5 +464,13 @@ void RS485Slave::handleStateChange(JsonDocument& doc) {
                 m_onFin();
             break;
         }
+    }
+}
+
+void RS485Slave::handleJump(JsonDocument& doc) {
+    int timeInTenth = doc["timeInTenth"];
+    
+    if(m_onJump) {
+        m_onJump(timeInTenth);
     }
 }
