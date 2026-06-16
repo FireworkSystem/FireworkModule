@@ -146,9 +146,9 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
         return false;
     }
 
-    Serial.printf("[readFrame] Header: dst=0x%02X src=0x%02X len=%u\n",
-                  header[0], header[1],
-                  (static_cast<uint16_t>(header[2]) << 8) | header[3]);
+    //Serial.printf("[readFrame] Header: dst=0x%02X src=0x%02X len=%u\n",
+                  //header[0], header[1],
+                  //(static_cast<uint16_t>(header[2]) << 8) | header[3]);
 
     frame.dst        = header[0];
     frame.src        = header[1];
@@ -167,9 +167,9 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
         return false;
     }
 
-    Serial.printf("[readFrame] Payload (%u B): %.*s\n",
-                  frame.payloadLen, frame.payloadLen,
-                  reinterpret_cast<const char*>(frame.payload));
+    //Serial.printf("[readFrame] Payload (%u B): %.*s\n",
+                  //frame.payloadLen, frame.payloadLen,
+                  //reinterpret_cast<const char*>(frame.payload));
 
     // ── 4. Read CRC (2 bytes) + ETX ───────────────────────────────────────────
     uint8_t tail[3];
@@ -201,7 +201,7 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
         return false;
     }
 
-    Serial.println("[readFrame] Frame OK");
+    //Serial.println("[readFrame] Frame OK");
     frame.valid = true;
     return true;
 }

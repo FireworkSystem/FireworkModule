@@ -222,8 +222,8 @@ void setup() {
     }
   });
 
-  slave.onJump([](int timeInTenth) {
-    sequencer.jumpTo(timeInTenth);
+  slave.onJump([](int timeInTenths) {
+    sequencer.jumpTo(timeInTenths);
   });
 
   sequencer.onFire([](int id)

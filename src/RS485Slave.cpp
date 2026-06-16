@@ -290,14 +290,17 @@ void RS485Slave::handleCommand(const char* cmd, JsonDocument& doc)
         handleStateChange(doc);
     }
     else if (strcmp(cmd, CMD_JUMP) == 0) {
-
+        handleJump(doc);
     }
     else
     {
-        // Forward to the user callback for application commands
+        // ACK receipt before dispatching — if the handler sends a frame back to
+        // master (e.g. sync_need from inside handleSyncList), sending ACK first
+        // lets master's waitResponse() complete cleanly before the handler
+        // transmits, preventing a bus collision on the half-duplex line.
+        sendAck();
         if (m_onCommand)
             m_onCommand(cmd, doc);
-        sendAck();
     }
 }
 
@@ -468,9 +471,8 @@ void RS485Slave::handleStateChange(JsonDocument& doc) {
 }
 
 void RS485Slave::handleJump(JsonDocument& doc) {
-    int timeInTenth = doc["timeInTenth"];
-    
-    if(m_onJump) {
-        m_onJump(timeInTenth);
-    }
+    const int timeInTenths = doc["timeInTenths"].as<int>();
+
+    if (m_onJump)
+        m_onJump(timeInTenths);
 }

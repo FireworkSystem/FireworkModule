@@ -58,7 +58,7 @@ public:
     using OnPause = std::function<void()>;
     using OnStop = std::function<void()>;
     using OnFin = std::function<void()>;
-    using OnJump = std::function<void(int timeInTenth)>;
+    using OnJump = std::function<void(int timeInTenths)>;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
