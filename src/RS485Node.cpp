@@ -51,12 +51,10 @@ void RS485Node::setRxMode()
 
     digitalWrite(m_pinDE, LOW);
 
-    // Discard any echo bytes we received of our own transmission.
-    // On a shared RS485 bus the sender sees its own bytes reflected back.
-    // We must drop exactly those bytes and nothing else — so we only flush
-    // bytes that are already in the buffer RIGHT NOW, not future ones.
-    const uint32_t drainDeadline = millis() + 5;
-    while (m_serial.available() && millis() < drainDeadline)
+    // DE+RE share one pin: RE is disabled during TX so there are no echo
+    // bytes. Drain only what is immediately in the buffer right now (bus
+    // noise); do NOT loop with a timeout or incoming frames get consumed.
+    while (m_serial.available())
         m_serial.read();
 }
 
@@ -118,7 +116,6 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
             continue;
 
         const uint8_t b = static_cast<uint8_t>(m_serial.read());
-        //Serial.printf("[readFrame] RX byte: 0x%02X (STX=0x%02X)\n", b, RS485_STX);
 
         if (b == RS485_STX)
         {
@@ -128,10 +125,7 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
     }
 
     if (!stxFound)
-    {
-        //Serial.println("[readFrame] STX not found — timeout");
         return false;
-    }
 
     //Serial.println("[readFrame] STX found");
 

@@ -118,6 +118,12 @@ public:
     /// @return This board's WiFi MAC as "AA:BB:CC:DD:EE:FF".
     const char* mac() const;
 
+    /// @return currentState
+    State getCurrentState();
+
+    /// @return if currentState as been set
+    bool setCurrentState(State newState);
+
 private:
     // ── Discovery ─────────────────────────────────────────────────────────────
     void sendHello();
@@ -163,6 +169,8 @@ private:
     OnFileReady  m_onFileReady;
     OnRegistered m_onRegistered;
     
+    State m_currentState = State::NotConnected;
+
     OnUnconnect m_onUnconnect;
     OnPreparation m_onPreparation;
     OnArmement m_onArmement;

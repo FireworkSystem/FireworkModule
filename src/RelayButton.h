@@ -50,7 +50,7 @@ class RelayButton
 public:
     /// @param index       0–7, determines position in the 2×4 grid
     /// @param relayNumber 1-based relay number shown as label
-    RelayButton(uint8_t index, uint8_t relayNumber);
+    RelayButton(uint8_t index, uint8_t relayNumber, char defaultChar);
 
     // ── State setters — each redraws the button ───────────────────────────────
     void setConnected   (TFT_eSPI& tft, bool connected);
@@ -80,4 +80,5 @@ private:
     uint8_t    m_relayNumber;
     RelayState m_state      = RelayState::DISCONNECTED;
     int        m_shotNumber = -1;
+    char       m_defaultChar;
 };

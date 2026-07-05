@@ -106,10 +106,17 @@ void RS485Slave::update()
         Serial.printf("[Slave] No contact from master for %ums — re-registering\n",
                       m_connectionTimeoutMs);
 
-        // Reset registration state
-        m_registered = false;
-        m_addr       = 0;
+        // Reset registration and protocol state so the next send_state
+        // is always treated as a change and fires the appropriate callback.
+        m_registered   = false;
+        m_addr         = 0;
+        setCurrentState(State::NotConnected);
         m_file.reset();
+
+        // Notify the app exactly once — retries must NOT call this again
+        // or they would override any broadcast state received while re-registering.
+        if (m_onUnconnect)
+            m_onUnconnect();
 
         // Send hello immediately — don't wait for the retry timer
         sendHello();
@@ -120,11 +127,10 @@ void RS485Slave::update()
         millis() - m_lastHelloMs >= m_helloRetryMs)
     {
         Serial.println("[Slave] No welcome received — retrying hello");
-        
-        if(m_onUnconnect)
-            m_onUnconnect();
-
         sendHello();
+        setCurrentState(State::NotConnected);
+        if (m_onUnconnect)
+            m_onUnconnect();
     }
 }
 
@@ -427,47 +433,61 @@ void RS485Slave::handleFileEnd(JsonDocument& doc)
     m_file.reset();
 }
 
+State RS485Slave::getCurrentState() {
+    return m_currentState;
+}
+
+bool RS485Slave::setCurrentState(State newState) {
+    if(m_currentState != newState) {
+        m_currentState = newState;
+        return true;
+    }
+    return false;
+}
+
 void RS485Slave::handleStateChange(JsonDocument& doc) {
     int intState = doc["state"];
-    State state = static_cast<State>(intState);
-    switch(state) {
-        case State::NotConnected: {
-            if(m_onUnconnect)
-                m_onUnconnect();
-            break;
-        }
-        case State::Preparation: {
-            if(m_onPreparation)
-                m_onPreparation();
-            break;
-        }
-        case State::Armement: {
-            if(m_onArmement)
-                m_onArmement();
-            break;
-        }
-        case State::Play: {
-            String fileName = doc["filename"];
-            if(m_onPlay)
-                m_onPlay(fileName);
-            break;
-        }
-        case State::Pause: {
-            if(m_onPause)
-                m_onPause();
-            break;
-        }
-        case State::Stop: {
-            if(m_onStop)
-                m_onStop();
-            break;
-        }
-        case State::Fin: {
-            if(m_onFin)
-                m_onFin();
-            break;
+    if(setCurrentState(static_cast<State>(intState))) {
+        switch(m_currentState) {
+            case State::NotConnected: {
+                if(m_onUnconnect)
+                    m_onUnconnect();
+                break;
+            }
+            case State::Preparation: {
+                if(m_onPreparation)
+                    m_onPreparation();
+                break;
+            }
+            case State::Armement: {
+                if(m_onArmement)
+                    m_onArmement();
+                break;
+            }
+            case State::Play: {
+                String fileName = doc["filename"];
+                if(m_onPlay)
+                    m_onPlay(fileName);
+                break;
+            }
+            case State::Pause: {
+                if(m_onPause)
+                    m_onPause();
+                break;
+            }
+            case State::Stop: {
+                if(m_onStop)
+                    m_onStop();
+                break;
+            }
+            case State::Fin: {
+                if(m_onFin)
+                    m_onFin();
+                break;
+            }
         }
     }
+    sendAck(); // master uses sendCommand() which expects ACK
 }
 
 void RS485Slave::handleJump(JsonDocument& doc) {

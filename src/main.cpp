@@ -9,17 +9,19 @@
 #include "SplashScreen.h"
 #include "logo_gif.h"
 #include "TopSequencer.h"
+#include "StatusLed.h"
 
 TFT_eSPI tft = TFT_eSPI();
 JsonDocument doc;
 RS485Slave slave;
+StatusLed  statusLed;
 FileSyncSlave fileSync(slave, "/plans");
 RelayView     relayView(tft);
 SplashScreen  splash(tft);
 Top* tops = nullptr;
 uint16_t      topCount = 0;
 TopSequencer  sequencer;
-State currentState = State::NotConnected;
+State currentState = State::NotConnected; // to reduce call to getCurrentState() in update()
 
 //#define BUTTON_PIN 0  // physical PROG button
 //#define MUX_PIN 25
@@ -28,7 +30,70 @@ State currentState = State::NotConnected;
 //bool lastRelayState = LOW;
 
 static constexpr uint8_t DETECT_PINS[RELAY_COUNT] = { 32, 33, 25, 23 };
-static bool s_lastConnected[RELAY_COUNT] = {};
+static bool s_lastConnected[RELAY_COUNT]          = {};
+static bool s_pendingConfigLoad                   = false;
+
+// Shows a full-screen popup in portrait mode asking whether to restore the saved
+// relay config. Returns true if the user taps YES or the 5-second countdown
+// expires (auto-load); false if the user taps NO.
+// Must be called after relayView.calibrateTouch() so touch coords are valid.
+static bool showConfigPopup()
+{
+    // landscape 320×240 — same rotation as the splash screen
+    tft.fillScreen(TFT_NAVY);
+    tft.setTextDatum(MC_DATUM);
+    tft.setFreeFont(&FreeSansBold18pt7b);
+    tft.setTextColor(TFT_WHITE, TFT_NAVY);
+    tft.drawString("Config found!", 160, 35);
+    tft.drawString("Reload relay", 160, 78);
+    tft.drawString("assignments?", 160, 108);
+
+    tft.drawFastHLine(0, 160, 320, TFT_WHITE);
+
+    // YES button — left half
+    tft.fillRect(0, 161, 160, 79, TFT_DARKGREEN);
+    tft.drawFastVLine(159, 161, 79, TFT_WHITE);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
+    tft.drawString("YES", 80, 200);
+
+    // NO button — right half
+    tft.fillRect(160, 161, 160, 79, 0xC000); // dark red
+    tft.setTextColor(TFT_WHITE, 0xC000);
+    tft.drawString("NO", 240, 200);
+
+    const uint32_t start   = millis();
+    uint32_t       lastSec = 99;
+
+    while (true)
+    {
+        const uint32_t elapsed = millis() - start;
+        if (elapsed >= 5000) return true; // auto-load
+
+        const uint32_t remaining = (5000 - elapsed + 999) / 1000;
+        if (remaining != lastSec)
+        {
+            lastSec = remaining;
+            tft.fillRect(0, 130, 320, 26, TFT_NAVY);
+            tft.setTextColor(TFT_YELLOW, TFT_NAVY);
+            tft.drawString("Auto-load in " + String(remaining) + "s", 160, 143);
+        }
+
+        uint16_t tx = 0, ty = 0;
+        if (tft.getTouch(&tx, &ty))
+        {
+            // Calibration was stored at rotation 0 (portrait).
+            // Convert portrait coords to landscape: lx = ty, ly = 239 - tx.
+            uint16_t lx = ty;
+            uint16_t ly = 239 - tx;
+            if (ly >= 160)
+            {
+                delay(50); // debounce
+                return lx < 160; // YES = left, NO = right
+            }
+        }
+        delay(20);
+    }
+}
 
 void checkIgniters()
 {
@@ -100,6 +165,10 @@ void setup() {
   if (!LittleFS.exists("/plans"))
       LittleFS.mkdir("/plans");
 
+  relayView.calibrateTouch();
+  if (LittleFS.exists(RELAY_CONFIG_PATH))
+      s_pendingConfigLoad = showConfigPopup();
+
   for (uint8_t i = 0; i < RELAY_COUNT; ++i)
     pinMode(DETECT_PINS[i], INPUT);
 
@@ -108,6 +177,7 @@ void setup() {
   fileSync.onRegistered([](uint8_t assignedId)
   {
       Serial.printf("[App] Registered with master  id=0x%02X\n", assignedId);
+      statusLed.setConnected(true);
   });
 
   slave.onCommand([](const char* cmd, JsonDocument& doc)
@@ -160,17 +230,28 @@ void setup() {
       // TODO: signal readiness to the rest of the application
   });
 
+  statusLed.begin();
+
   fileSync.begin();
   slave.begin();
 
   slave.onUnconnect([](){
-    currentState = State::NotConnected;
-    drawState(State::NotConnected);
+    statusLed.setConnected(false);
+    // if we are currently playing don't stop and continue without master
+    if(currentState != State::Play) {
+      currentState = State::NotConnected;
+      drawState(State::NotConnected);
+    }
   });
 
   slave.onPreparation([](){
     currentState = State::Preparation;
     relayView.begin();
+    if (s_pendingConfigLoad)
+    {
+        relayView.loadConfig(RELAY_CONFIG_PATH);
+        s_pendingConfigLoad = false;
+    }
   });
 
   slave.onArmement([](){
@@ -237,6 +318,7 @@ void setup() {
 void loop() {
 
   slave.update();
+  statusLed.update();
   if(currentState == State::Preparation) {
     checkIgniters();
     relayView.update();
