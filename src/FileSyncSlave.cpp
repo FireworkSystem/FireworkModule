@@ -55,6 +55,11 @@ void FileSyncSlave::onRegistered(OnRegistered callback)
     m_onRegistered = callback;
 }
 
+void FileSyncSlave::onTransferStart(OnTransferStart callback)
+{
+    m_onTransferStart = callback;
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  requestSync
@@ -275,6 +280,9 @@ void FileSyncSlave::handleSyncList(JsonDocument& doc)
     // Track progress so onSyncComplete fires after the last file
     m_filesExpected = needed.count;
     m_filesReceived = 0;
+
+    if (m_onTransferStart)
+        m_onTransferStart(needed.count);
 
     // Build and send sync_need request
     Serial.printf("[SyncSlave] Requesting %u file(s) from master\n",

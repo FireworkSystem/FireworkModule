@@ -13,7 +13,7 @@
 
 TFT_eSPI tft = TFT_eSPI();
 JsonDocument doc;
-RS485Slave slave;
+RS485Slave slave(Serial2, /*TX*/17, /*RX*/16, /*DE*/26, /*baud*/9600);
 StatusLed  statusLed;
 FileSyncSlave fileSync(slave, "/plans");
 RelayView     relayView(tft);
@@ -224,10 +224,16 @@ void setup() {
   });
 
   // ── Sync callbacks ────────────────────────────────────────────────────────
+  fileSync.onTransferStart([](uint8_t total)
+  {
+      Serial.printf("[App] Downloading %u file(s) from master\n", total);
+      statusLed.startTransfer();
+  });
+
   fileSync.onSyncComplete([]()
   {
       Serial.println("[App] Sync complete — all plans up to date");
-      // TODO: signal readiness to the rest of the application
+      statusLed.endTransfer();
   });
 
   statusLed.begin();

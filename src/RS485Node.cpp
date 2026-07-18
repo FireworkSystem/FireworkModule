@@ -116,6 +116,7 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
             continue;
 
         const uint8_t b = static_cast<uint8_t>(m_serial.read());
+        Serial.printf("[RS485 RX] 0x%02X\n", b);  // TEMP DIAG — remove after fix
 
         if (b == RS485_STX)
         {
@@ -127,7 +128,7 @@ bool RS485Node::readFrame(RS485Frame& frame, uint32_t timeoutMs)
     if (!stxFound)
         return false;
 
-    //Serial.println("[readFrame] STX found");
+    Serial.println("[readFrame] STX found");  // TEMP DIAG
 
     const uint32_t innerTimeoutMs = max(timeoutMs, static_cast<uint32_t>(200));
     const uint32_t innerDeadline  = millis() + innerTimeoutMs;

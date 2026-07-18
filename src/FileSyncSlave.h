@@ -36,8 +36,9 @@ static constexpr uint8_t SYNC_MAX_HASH     = 64;  ///< Max hash string length (w
 class FileSyncSlave
 {
 public:
-    using OnSyncComplete = std::function<void()>;
-    using OnRegistered   = std::function<void(uint8_t assignedId)>;
+    using OnSyncComplete   = std::function<void()>;
+    using OnRegistered     = std::function<void(uint8_t assignedId)>;
+    using OnTransferStart  = std::function<void(uint8_t totalFiles)>;
 
     /// @param slave    The RS485Slave instance.
     /// @param planDir  LittleFS directory that mirrors the Heltec plan files.
@@ -56,6 +57,10 @@ public:
     /// Use this instead of slave.onRegistered() directly, as FileSyncSlave
     /// already occupies that slot internally.
     void onRegistered(OnRegistered callback);
+
+    /// Called when files are missing/outdated and a download is about to start.
+    /// @param totalFiles  Number of files that will be downloaded.
+    void onTransferStart(OnTransferStart callback);
 
     /// Manually trigger a sync (sends sync_request to master).
     /// Called automatically after registration; call again if needed.
@@ -118,8 +123,9 @@ private:
     // ── Members ───────────────────────────────────────────────────────────────
     RS485Slave&    m_slave;
     const char*    m_planDir;          // points to a string literal — no heap
-    OnSyncComplete m_onSyncComplete;
-    OnRegistered   m_onRegistered;
+    OnSyncComplete  m_onSyncComplete;
+    OnRegistered    m_onRegistered;
+    OnTransferStart m_onTransferStart;
     
     // Track how many files are still outstanding so we know when sync is done
     uint8_t        m_filesExpected = 0;
