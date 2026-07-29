@@ -13,7 +13,7 @@
 
 TFT_eSPI tft = TFT_eSPI();
 JsonDocument doc;
-RS485Slave slave(Serial2, /*TX*/17, /*RX*/16, /*DE*/26, /*baud*/9600);
+RS485Slave slave(Serial2, /*TX*/17, /*RX*/18, /*DE*/26, /*baud*/9600);
 StatusLed  statusLed;
 FileSyncSlave fileSync(slave, "/plans");
 RelayView     relayView(tft);
@@ -169,8 +169,8 @@ void setup() {
   if (LittleFS.exists(RELAY_CONFIG_PATH))
       s_pendingConfigLoad = showConfigPopup();
 
-  for (uint8_t i = 0; i < RELAY_COUNT; ++i)
-    pinMode(DETECT_PINS[i], INPUT);
+  //for (uint8_t i = 0; i < RELAY_COUNT; ++i)
+  //  pinMode(DETECT_PINS[i], INPUT);  // GPIO32/33 reserved for flash on ESP32-S3
 
   splash.play(logo_gif, logo_gif_size);
 
