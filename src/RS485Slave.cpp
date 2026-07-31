@@ -36,12 +36,8 @@ RS485Slave::RS485Slave(HardwareSerial& serial,
     , m_helloRetryMs(helloRetryMs)
     , m_connectionTimeoutMs(connectionTimeoutMs)
 {
-    // Read MAC once at construction time
-    uint8_t rawMac[6];
-    esp_read_mac(rawMac, ESP_MAC_WIFI_STA);
-    snprintf(m_mac, sizeof(m_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
-             rawMac[0], rawMac[1], rawMac[2],
-             rawMac[3], rawMac[4], rawMac[5]);
+    // MAC is read in begin() once the framework is fully initialised.
+    strncpy(m_mac, "00:00:00:00:00:00", sizeof(m_mac));
 }
 
 RS485Slave::~RS485Slave()
@@ -55,6 +51,13 @@ RS485Slave::~RS485Slave()
 
 void RS485Slave::begin()
 {
+    // Read MAC here — safe once the Arduino framework has fully initialised.
+    uint8_t rawMac[6];
+    esp_read_mac(rawMac, ESP_MAC_WIFI_STA);
+    snprintf(m_mac, sizeof(m_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+             rawMac[0], rawMac[1], rawMac[2],
+             rawMac[3], rawMac[4], rawMac[5]);
+
     RS485Node::begin();
     m_lastContactMs = millis(); // start timeout clock from boot
     Serial.printf("[Slave] RS485 ready  TX=%d  RX=%d  DE=%d  @%u baud  MAC=%s\n",

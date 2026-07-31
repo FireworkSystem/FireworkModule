@@ -23,15 +23,13 @@ uint16_t      topCount = 0;
 TopSequencer  sequencer;
 State currentState = State::NotConnected; // to reduce call to getCurrentState() in update()
 
-//#define BUTTON_PIN 0  // physical PROG button
-//#define MUX_PIN 25
+static constexpr uint8_t DETECT_PINS[RELAY_COUNT]  = {  };
+static bool s_lastConnected[RELAY_COUNT]           = {};
+static bool s_pendingConfigLoad                    = false;
 
-//bool lastButtonState = HIGH;
-//bool lastRelayState = LOW;
-
-static constexpr uint8_t DETECT_PINS[RELAY_COUNT] = { 32, 33, 25, 23 };
-static bool s_lastConnected[RELAY_COUNT]          = {};
-static bool s_pendingConfigLoad                   = false;
+static constexpr uint8_t UPSTREAM_SIGNAL_PIN       = 27; // driven HIGH to signal presence to upstream
+static constexpr uint8_t DOWNSTREAM_PRESENCE_PIN  = 21; // read HIGH when a downstream module is present
+static bool s_lastDownstream                       = false;
 
 // Shows a full-screen popup in portrait mode asking whether to restore the saved
 // relay config. Returns true if the user taps YES or the 5-second countdown
@@ -95,6 +93,17 @@ static bool showConfigPopup()
     }
 }
 
+void checkDownstream()
+{
+    const bool downstream = digitalRead(DOWNSTREAM_PRESENCE_PIN) == HIGH;
+    if (downstream != s_lastDownstream)
+    {
+        s_lastDownstream = downstream;
+        statusLed.setConnected(downstream);
+        Serial.printf("[App] Downstream module %s\n", downstream ? "connected" : "disconnected");
+    }
+}
+
 void checkIgniters()
 {
     for (uint8_t i = 0; i < RELAY_COUNT; ++i)
@@ -145,11 +154,12 @@ void loadTops(String fileName) {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-
+  delay(2000);
+  Serial.println("1");
+  
   tft.init();
   tft.setRotation(1);
-
+  Serial.println("2");
   if (!LittleFS.begin(false))
   {
       Serial.println("[FS] Mount failed, formatting...");
@@ -161,10 +171,10 @@ void setup() {
       }
   }
   Serial.println("[FS] LittleFS mounted");
-
+  Serial.println("3");
   if (!LittleFS.exists("/plans"))
       LittleFS.mkdir("/plans");
-
+  Serial.println("4");
   relayView.calibrateTouch();
   if (LittleFS.exists(RELAY_CONFIG_PATH))
       s_pendingConfigLoad = showConfigPopup();
@@ -172,12 +182,16 @@ void setup() {
   //for (uint8_t i = 0; i < RELAY_COUNT; ++i)
   //  pinMode(DETECT_PINS[i], INPUT);  // GPIO32/33 reserved for flash on ESP32-S3
 
+  pinMode(UPSTREAM_SIGNAL_PIN, OUTPUT);
+  digitalWrite(UPSTREAM_SIGNAL_PIN, HIGH);
+
+  pinMode(DOWNSTREAM_PRESENCE_PIN, INPUT_PULLDOWN);
+
   splash.play(logo_gif, logo_gif_size);
 
   fileSync.onRegistered([](uint8_t assignedId)
   {
       Serial.printf("[App] Registered with master  id=0x%02X\n", assignedId);
-      statusLed.setConnected(true);
   });
 
   slave.onCommand([](const char* cmd, JsonDocument& doc)
@@ -242,7 +256,6 @@ void setup() {
   slave.begin();
 
   slave.onUnconnect([](){
-    statusLed.setConnected(false);
     // if we are currently playing don't stop and continue without master
     if(currentState != State::Play) {
       currentState = State::NotConnected;
@@ -324,6 +337,7 @@ void setup() {
 void loop() {
 
   slave.update();
+  checkDownstream();
   statusLed.update();
   if(currentState == State::Preparation) {
     checkIgniters();
