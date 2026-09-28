@@ -13,7 +13,7 @@
 
 TFT_eSPI tft = TFT_eSPI();
 JsonDocument doc;
-RS485Slave slave(Serial2, /*TX*/17, /*RX*/18, /*DE*/26, /*baud*/9600);
+RS485Slave slave(Serial2, /*TX*/17, /*RX*/18, /*DE*/RS485_NO_DE_PIN, /*baud*/9600);
 StatusLed  statusLed;
 FileSyncSlave fileSync(slave, "/plans");
 RelayView     relayView(tft);
@@ -27,7 +27,7 @@ static constexpr uint8_t DETECT_PINS[RELAY_COUNT]  = {  };
 static bool s_lastConnected[RELAY_COUNT]           = {};
 static bool s_pendingConfigLoad                    = false;
 
-static constexpr uint8_t UPSTREAM_SIGNAL_PIN       = 27; // driven HIGH to signal presence to upstream
+static constexpr uint8_t UPSTREAM_SIGNAL_PIN       = 16; // driven HIGH to signal presence to upstream
 static constexpr uint8_t DOWNSTREAM_PRESENCE_PIN  = 21; // read HIGH when a downstream module is present
 static bool s_lastDownstream                       = false;
 
@@ -155,11 +155,10 @@ void loadTops(String fileName) {
 void setup() {
   Serial.begin(115200);
   delay(2000);
-  Serial.println("1");
   
   tft.init();
   tft.setRotation(1);
-  Serial.println("2");
+
   if (!LittleFS.begin(false))
   {
       Serial.println("[FS] Mount failed, formatting...");
@@ -171,10 +170,10 @@ void setup() {
       }
   }
   Serial.println("[FS] LittleFS mounted");
-  Serial.println("3");
+
   if (!LittleFS.exists("/plans"))
       LittleFS.mkdir("/plans");
-  Serial.println("4");
+
   relayView.calibrateTouch();
   if (LittleFS.exists(RELAY_CONFIG_PATH))
       s_pendingConfigLoad = showConfigPopup();

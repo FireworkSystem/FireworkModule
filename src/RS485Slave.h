@@ -69,9 +69,9 @@ public:
     ///                            Default 15000ms (3× the default 5s heartbeat).
     explicit RS485Slave(HardwareSerial& serial              = Serial2,
                         uint8_t         pinTx               = 17,
-                        uint8_t         pinRx               = 16,
-                        uint8_t         pinDE               = 26,
-                        uint32_t        baud                = 115200,
+                        uint8_t         pinRx               = 18,
+                        uint8_t         pinDE               = RS485_NO_DE_PIN,
+                        uint32_t        baud                = 9600,
                         uint32_t        helloRetryMs        = 3000,
                         uint32_t        connectionTimeoutMs = 15000);
 

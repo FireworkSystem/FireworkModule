@@ -18,7 +18,7 @@ public:
     void update();
 
 private:
-    static constexpr uint8_t  PIN           = 18;
+    static constexpr uint8_t  PIN           = 15;
     static constexpr uint8_t  NUM_LEDS      = 30;
     static constexpr uint32_t BLINK_MS      = 500;
     static constexpr uint32_t SLIDE_STEP_MS = 30;   // ms per comet step
